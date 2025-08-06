@@ -57,9 +57,19 @@
             background-color: #4a5568; /* bg-gray-700 */
             color: white;
         }
+        .filter-btn {
+            transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: bold;
+        }
         .filter-btn.active {
             background-color: #8B5CF6; /* bg-purple-500 */
             color: white;
+        }
+        .filter-btn:not(.active) {
+            background-color: #e5e7eb; /* bg-gray-200 */
+            color: #374151; /* text-gray-700 */
         }
     </style>
 </head>
@@ -93,7 +103,7 @@
                         <i class="fas fa-user-check w-6 mr-3"></i>
                         <span>Checked-In Guests</span>
                     </a>
-                    <a href="index.html" class="sidebar-link flex items-center py-3 px-4 rounded-lg hover:bg-gray-700 mt-2">
+                    <a href="wedding_guest_tracker.html" class="sidebar-link flex items-center py-3 px-4 rounded-lg hover:bg-gray-700 mt-2">
                         <i class="fas fa-qrcode w-6 mr-3"></i>
                         <span>Go to Scanner</span>
                     </a>
@@ -144,10 +154,8 @@
                                 <div class="flex flex-wrap gap-2">
                                     <button id="add-guest-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg flex items-center"><i class="fas fa-plus mr-2"></i>Add Guest</button>
                                     <label for="file-upload" class="cursor-pointer bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg flex items-center"><i class="fas fa-file-import mr-2"></i>Import List</label>
-                                    <input id="file-upload" type="file" class="hidden" onchange="handleFileUpload(event)" accept=".csv, .xls, .xlsx">
-                                    
+                                    <input id="file-upload" type="file" class="hidden" accept=".csv, .xls, .xlsx">
                                     <button id="export-list-btn" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-lg flex items-center"><i class="fas fa-file-export mr-2"></i>Export Full List</button>
-
                                     <label for="template-upload" class="cursor-pointer bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-lg flex items-center"><i class="fas fa-image mr-2"></i>Upload Template</label>
                                     <input id="template-upload" type="file" class="hidden" accept="image/*">
                                     <button id="send-selected-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg flex items-center"><i class="fab fa-whatsapp mr-2"></i>Send to Selected (<span id="selected-count">0</span>)</button>
@@ -163,9 +171,9 @@
                                     <input type="search" id="search-input" placeholder="Search by name, phone, or code..." class="shadow appearance-none border rounded w-full py-2 px-3 pl-10 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-purple-500">
                                 </div>
                                 <div class="flex space-x-2">
-                                    <button id="filter-all" class="filter-btn active bg-purple-500 text-white font-bold py-2 px-4 rounded-lg">All</button>
-                                    <button id="filter-single" class="filter-btn bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Single Parties</button>
-                                    <button id="filter-double" class="filter-btn bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg">Double Parties</button>
+                                    <button id="filter-all" class="filter-btn active">All</button>
+                                    <button id="filter-single" class="filter-btn">Single Parties</button>
+                                    <button id="filter-double" class="filter-btn">Double Parties</button>
                                 </div>
                             </div>
 
@@ -349,7 +357,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, setLogLevel, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- GLOBAL STATE ---
         let guestList = [];
@@ -367,14 +375,12 @@
         function handlePasswordSubmit(e) {
             e.preventDefault();
             const password = document.getElementById('password-input').value;
-            const errorEl = document.getElementById('password-error');
-            
             if (password === 'admin123') {
                 document.getElementById('password-modal').classList.add('hidden');
                 document.getElementById('admin-content').classList.remove('hidden');
                 initializeAdminPortal();
             } else {
-                errorEl.classList.remove('hidden');
+                document.getElementById('password-error').classList.remove('hidden');
             }
         }
 
@@ -406,43 +412,32 @@
             }
         }
         
-        // MODIFIED: Centralized event listener setup
         function setupEventListeners() {
-            // Main actions
             document.getElementById('add-guest-btn').addEventListener('click', openAddGuestModal);
             document.getElementById('export-list-btn').addEventListener('click', exportFullGuestList);
             document.getElementById('send-selected-btn').addEventListener('click', sendToSelected);
             document.getElementById('delete-selected-btn').addEventListener('click', deleteSelected);
-
-            // Search and filter
+            document.getElementById('file-upload').addEventListener('change', handleFileUpload);
             document.getElementById('search-input').addEventListener('input', renderGuestList);
             document.getElementById('search-input-checked-in').addEventListener('input', renderCheckedInList);
             document.getElementById('filter-all').addEventListener('click', () => setFilter('all'));
             document.getElementById('filter-single').addEventListener('click', () => setFilter('single'));
             document.getElementById('filter-double').addEventListener('click', () => setFilter('double'));
-            
-            // Forms and Modals
             document.getElementById('guest-form').addEventListener('submit', handleFormSubmit);
             document.getElementById('cancel-add-guest-btn').addEventListener('click', closeAddGuestModal);
             document.getElementById('select-all-checkbox').addEventListener('change', handleSelectAll);
             document.getElementById('confirm-delete-btn').addEventListener('click', confirmAction);
             document.getElementById('cancel-delete-btn').addEventListener('click', closeDeleteConfirmModal);
             document.getElementById('close-import-summary-btn').addEventListener('click', closeImportSummaryModal);
-            
-            // Invitation Designer
             document.getElementById('template-upload').addEventListener('change', handleTemplateUpload);
             document.getElementById('invitation-message').addEventListener('input', () => drawInvitationCanvas(currentGuestForInvitation));
             document.getElementById('host-names').addEventListener('input', () => drawInvitationCanvas(currentGuestForInvitation));
             document.getElementById('send-whatsapp-btn').addEventListener('click', () => sendViaWhatsApp());
             document.getElementById('download-invitation-btn').addEventListener('click', downloadInvitation);
             document.getElementById('close-invitation-btn').addEventListener('click', closeInvitationDesigner);
-
-            // Page Navigation
             document.getElementById('nav-dashboard').addEventListener('click', () => showPage('dashboard'));
             document.getElementById('nav-checked-in').addEventListener('click', () => showPage('checked-in'));
             document.getElementById('menu-button').addEventListener('click', () => document.getElementById('sidebar').classList.toggle('-translate-x-full'));
-
-            // Checked-in Page Exports
             document.getElementById('export-csv-btn').addEventListener('click', () => exportData('csv'));
             document.getElementById('export-xlsx-btn').addEventListener('click', () => exportData('xlsx'));
         }
@@ -465,20 +460,16 @@
             return result;
         }
 
-        // --- DASHBOARD & UI RENDERING ---
         function updateStats() {
             const totalHeadcount = guestList.reduce((sum, guest) => sum + (guest.partySize || 1), 0);
             const confirmedHeadcount = guestList.filter(g => g.status === 'CONFIRMED').reduce((sum, guest) => sum + (guest.partySize || 1), 0);
             const checkedInHeadcount = guestList.filter(g => g.checkedIn).reduce((sum, guest) => sum + (guest.partySize || 1), 0);
-            
             document.getElementById('total-guests').textContent = totalHeadcount;
             document.getElementById('total-confirmed').textContent = confirmedHeadcount;
             document.getElementById('total-checked-in').textContent = checkedInHeadcount;
-
             const checkedInGuests = guestList.filter(g => g.checkedIn);
             const checkedInSingle = checkedInGuests.filter(g => g.partySize == 1).length;
             const checkedInDoubleParties = checkedInGuests.filter(g => g.partySize == 2).length;
-
             document.getElementById('checked-in-total').textContent = checkedInHeadcount;
             document.getElementById('checked-in-single').textContent = checkedInSingle;
             document.getElementById('checked-in-double').textContent = checkedInDoubleParties;
@@ -487,34 +478,28 @@
         function renderGuestList() {
             const guestListBody = document.getElementById('guest-list-body');
             guestListBody.innerHTML = '';
-
             let listToRender = guestList;
             if (activeFilter === 'single') {
                 listToRender = guestList.filter(g => g.partySize == 1);
             } else if (activeFilter === 'double') {
                 listToRender = guestList.filter(g => g.partySize == 2);
             }
-            
             const searchTerm = document.getElementById('search-input').value.toLowerCase();
             const filteredList = listToRender.filter(guest => 
                 (guest.name && guest.name.toLowerCase().includes(searchTerm)) || 
                 (guest.phoneNumber && guest.phoneNumber.toLowerCase().includes(searchTerm)) ||
                 (guest.uniqueCode && guest.uniqueCode.toLowerCase().includes(searchTerm))
             );
-
             if (filteredList.length === 0) {
                 guestListBody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-gray-500">No guests found.</td></tr>`;
                 return;
             }
-
             filteredList.forEach(guest => {
                 const row = document.createElement('tr');
                 row.className = 'hover:bg-gray-50';
-                
                 const statusBadge = getStatusBadge(guest.status);
                 const partyText = guest.partySize == 2 ? 'Double' : 'Single';
                 const checkedInIcon = guest.checkedIn ? `<i class="fas fa-check-circle text-green-500"></i> Yes` : `<i class="fas fa-times-circle text-red-500"></i> No`;
-
                 row.innerHTML = `
                     <td class="py-3 px-4"><input type="checkbox" class="guest-checkbox" data-guest-id="${guest.id}"></td>
                     <td class="py-3 px-4 font-medium text-gray-900">${guest.name}</td>
@@ -531,8 +516,7 @@
                 `;
                 guestListBody.appendChild(row);
             });
-            
-            document.querySelectorAll('.guest-checkbox').forEach(checkbox => {
+            guestListBody.querySelectorAll('.guest-checkbox').forEach(checkbox => {
                 checkbox.addEventListener('change', updateSelectedCount);
             });
             updateSelectedCount();
@@ -541,28 +525,21 @@
         function renderCheckedInList() {
             const checkedInListBody = document.getElementById('checked-in-list-body');
             checkedInListBody.innerHTML = '';
-            
             const checkedInGuests = guestList.filter(guest => guest.checkedIn);
             const searchTerm = document.getElementById('search-input-checked-in').value.toLowerCase();
-            const filteredList = checkedInGuests.filter(guest => 
-                (guest.name && guest.name.toLowerCase().includes(searchTerm))
-            );
-
+            const filteredList = checkedInGuests.filter(guest => (guest.name && guest.name.toLowerCase().includes(searchTerm)));
             if (filteredList.length === 0) {
                 checkedInListBody.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-gray-500">No guests have checked in yet.</td></tr>`;
                 return;
             }
-
             filteredList.forEach(guest => {
                 const row = document.createElement('tr');
                 row.className = 'hover:bg-gray-50';
                 const partyText = guest.partySize == 2 ? 'Double' : 'Single';
-                const checkedInStatus = `<span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full"><i class="fas fa-check mr-1"></i>Yes</span>`;
-
                 row.innerHTML = `
                     <td class="py-3 px-4">${guest.name}</td>
                     <td class="py-3 px-4">${partyText}</td>
-                    <td class="py-3 px-4">${checkedInStatus}</td>
+                    <td class="py-3 px-4"><span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full"><i class="fas fa-check mr-1"></i>Yes</span></td>
                 `;
                 checkedInListBody.appendChild(row);
             });
@@ -576,38 +553,27 @@
             }
         }
 
-        // --- GUEST MANAGEMENT (CRUD) ---
         async function handleFormSubmit(e) {
             e.preventDefault();
             const guestId = document.getElementById('guest-id').value;
             const guestName = document.getElementById('full-name').value.trim();
-            const phoneNumber = document.getElementById('phone-number').value;
-
             const guestData = {
                 name: guestName,
-                phoneNumber: phoneNumber,
+                phoneNumber: document.getElementById('phone-number').value,
                 status: document.getElementById('status').value,
                 partySize: parseInt(document.getElementById('party-size').value, 10),
             };
-
             try {
                 if (guestId) {
-                    const guestDocRef = doc(db, "guests", guestId);
-                    await setDoc(guestDocRef, guestData, { merge: true });
+                    await setDoc(doc(db, "guests", guestId), guestData, { merge: true });
                     showToast("Guest updated successfully!");
                 } else {
-                    if (guestList.some(guest => guest.name.trim().toLowerCase() === guestName.toLowerCase())) {
+                    if (guestList.some(g => g.name.trim().toLowerCase() === guestName.toLowerCase())) {
                         showToast("Error: A guest with this name already exists.");
                         return;
                     }
                     const newGuestRef = doc(guestCollectionRef);
-                    const uniqueCode = generateUniqueCode();
-                    await setDoc(newGuestRef, { 
-                        ...guestData, 
-                        id: newGuestRef.id, 
-                        uniqueCode: uniqueCode,
-                        checkedIn: false 
-                    });
+                    await setDoc(newGuestRef, { ...guestData, id: newGuestRef.id, uniqueCode: generateUniqueCode(), checkedIn: false });
                     showToast("Guest added successfully!");
                 }
                 closeAddGuestModal();
@@ -630,66 +596,46 @@
             }
         }
         
-        window.handleFileUpload = function(event) {
+        function handleFileUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
             const reader = new FileReader();
             reader.onload = async (e) => {
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                     const json = XLSX.utils.sheet_to_json(worksheet);
-                    
                     event.target.value = '';
-                    
-                    if (json.length === 0) {
-                        showImportSummary('<p class="text-red-500">Error: The selected file is empty.</p>');
-                        return;
-                    }
+                    if (json.length === 0) return showImportSummary('<p class="text-red-500">Error: The file is empty.</p>');
 
                     const batch = writeBatch(db);
-                    let skippedCount = 0;
-                    let addedCount = 0;
+                    let addedCount = 0, skippedCount = 0;
                     const existingNames = new Set(guestList.map(g => g.name.trim().toLowerCase()));
-
                     json.forEach((item) => {
                         const name = (item['Name'] || item['Full Name'] || item['name'] || '').trim();
                         const phone = String(item['Phone'] || item['Phone Number'] || item['phoneNumber'] || '');
-                        
                         if (name && phone && !existingNames.has(name.toLowerCase())) {
                             const newGuestRef = doc(guestCollectionRef);
                             batch.set(newGuestRef, {
-                                id: newGuestRef.id, name: name, phoneNumber: phone,
+                                id: newGuestRef.id, name, phoneNumber: phone,
                                 status: (item['Status'] || 'INVITED').toString().toUpperCase(),
                                 partySize: parseInt(item['PartySize'] || item['Party Size'] || 1, 10),
-                                uniqueCode: generateUniqueCode(),
-                                checkedIn: false
+                                uniqueCode: generateUniqueCode(), checkedIn: false
                             });
                             addedCount++;
-                            existingNames.add(name.toLowerCase()); 
-                        } else {
-                            skippedCount++;
-                        }
+                            existingNames.add(name.toLowerCase());
+                        } else { skippedCount++; }
                     });
-                    
-                    if (addedCount > 0) {
-                        await batch.commit();
-                    }
-                    
-                    showImportSummary(`<p class="text-green-600">${addedCount} new guests added successfully.</p><p class="text-yellow-600">${skippedCount} guests were skipped (duplicates or missing data).</p>`);
-
+                    if (addedCount > 0) await batch.commit();
+                    showImportSummary(`<p class="text-green-600">${addedCount} guests added.</p><p class="text-yellow-600">${skippedCount} guests skipped.</p>`);
                 } catch (error) {
-                    console.error("Error processing file:", error);
-                    showImportSummary('<p class="text-red-500">Error: Could not process file. Ensure it is a valid Excel/CSV file.</p>');
+                    showImportSummary('<p class="text-red-500">Error: Could not process file.</p>');
                 }
             };
             reader.readAsArrayBuffer(file);
         };
 
-        // --- MODAL & TOAST CONTROLS ---
         function openAddGuestModal() {
             document.getElementById('guest-form').reset();
             document.getElementById('modal-title').textContent = 'Add New Guest';
@@ -707,12 +653,9 @@
         
         function showToast(message) {
             const toast = document.getElementById('toast-notification');
-            const toastMessage = document.getElementById('toast-message');
-            toastMessage.textContent = message;
+            toast.children[0].textContent = message;
             toast.classList.remove('translate-y-20', 'opacity-0');
-            setTimeout(() => {
-                toast.classList.add('translate-y-20', 'opacity-0');
-            }, 3000);
+            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
         }
         
         function showImportSummary(summary) {
@@ -731,24 +674,14 @@
         window.openDeleteConfirmModal = function(id, isBulk, actionType = 'delete') {
             actionToConfirm = { id, isBulk, type: actionType };
             let message = '';
-            const confirmBtn = document.getElementById('confirm-delete-btn');
-
+            const selectedCount = document.querySelectorAll('.guest-checkbox:checked').length;
             if (isBulk) {
-                const selectedCount = document.querySelectorAll('.guest-checkbox:checked').length;
-                if (actionType === 'delete') {
-                    message = `Are you sure you want to delete ${selectedCount} selected guests? This action cannot be undone.`;
-                    confirmBtn.textContent = 'Delete';
-                } else { // send
-                    message = `You are about to open WhatsApp for ${selectedCount} guests. This will open multiple tabs. Are you sure?`;
-                    confirmBtn.textContent = 'Confirm Send';
-                }
+                message = actionType === 'delete' ? `Delete ${selectedCount} guests?` : `Send to ${selectedCount} guests?`;
             } else {
                 const guest = guestList.find(g => g.id === id);
                 if (!guest) return;
-                message = `Are you sure you want to delete ${guest.name}? This action cannot be undone.`;
-                confirmBtn.textContent = 'Delete';
+                message = `Delete ${guest.name}?`;
             }
-            
             document.getElementById('delete-confirm-message').textContent = message;
             document.getElementById('delete-confirm-modal').classList.remove('hidden');
         }
@@ -761,35 +694,34 @@
         async function confirmAction() {
             if (!actionToConfirm) return;
             const { id, isBulk, type } = actionToConfirm;
+            const selectedIds = Array.from(document.querySelectorAll('.guest-checkbox:checked')).map(cb => cb.dataset.guestId);
+            const idsToProcess = isBulk ? selectedIds : [id];
 
             if (type === 'delete') {
                 try {
-                    const idsToDelete = isBulk ? Array.from(document.querySelectorAll('.guest-checkbox:checked')).map(cb => cb.dataset.guestId) : [id];
                     const batch = writeBatch(db);
-                    idsToDelete.forEach(guestId => batch.delete(doc(db, "guests", guestId)));
+                    idsToProcess.forEach(guestId => batch.delete(doc(db, "guests", guestId)));
                     await batch.commit();
-                    showToast(`${idsToDelete.length} guest(s) deleted successfully.`);
-                } catch (error) {
-                    showToast("Error: Could not delete guest(s).");
-                }
+                    showToast(`${idsToProcess.length} guest(s) deleted.`);
+                } catch (error) { showToast("Error deleting guest(s)."); }
             } else if (type === 'send') {
-                 Array.from(document.querySelectorAll('.guest-checkbox:checked')).map(cb => cb.dataset.guestId).forEach(guestId => {
+                 idsToProcess.forEach(guestId => {
                     const guest = guestList.find(g => g.id === guestId);
                     if (guest && guest.phoneNumber) sendViaWhatsApp(guest);
                 });
             }
-            
             closeDeleteConfirmModal();
         }
 
-        // --- INVITATION DESIGNER ---
         window.openInvitationDesigner = function(guestId) {
             currentGuestForInvitation = guestList.find(g => g.id === guestId);
             if (!currentGuestForInvitation) return;
             const modal = document.getElementById('invitation-design-modal');
             modal.classList.remove('hidden');
-            setTimeout(() => modal.querySelector('.modal-content').classList.remove('scale-95'), 10);
-            drawInvitationCanvas(currentGuestForInvitation);
+            setTimeout(() => {
+                modal.querySelector('.modal-content').classList.remove('scale-95');
+                drawInvitationCanvas(currentGuestForInvitation);
+            }, 10);
         }
 
         function closeInvitationDesigner() {
@@ -800,30 +732,132 @@
 
         function handleTemplateUpload(event) {
             const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    templateImage = new Image();
-                    templateImage.onload = () => drawInvitationCanvas(currentGuestForInvitation);
-                    templateImage.src = e.target.result;
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                templateImage = new Image();
+                templateImage.onload = () => {
+                    if (currentGuestForInvitation) drawInvitationCanvas(currentGuestForInvitation);
                 };
-                reader.readAsDataURL(file);
-            }
+                templateImage.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
         }
 
         function drawInvitationCanvas(guest) {
-            // This function's implementation remains the same
+            if (!guest) return;
+            return new Promise((resolve, reject) => {
+                try {
+                    const canvas = document.getElementById('invitation-canvas');
+                    const ctx = canvas.getContext('2d');
+                    const W = 500, H = 700;
+                    canvas.width = W; canvas.height = H;
+
+                    if (templateImage) {
+                        ctx.drawImage(templateImage, 0, 0, W, H);
+                    } else {
+                        ctx.fillStyle = '#FDFBF7';
+                        ctx.fillRect(0, 0, W, H);
+                        ctx.strokeStyle = '#D4AF37';
+                        ctx.lineWidth = 10;
+                        ctx.strokeRect(20, 20, W - 40, H - 40);
+                    }
+                    
+                    ctx.textAlign = 'center';
+                    const maxWidth = W - 100;
+                    const message = document.getElementById('invitation-message').value;
+                    const hostNames = document.getElementById('host-names').value;
+                    
+                    ctx.fillStyle = '#5C5C5C';
+                    ctx.font = '22px "Cormorant Garamond", serif';
+                    const messageY = wrapText(ctx, `${message} ${hostNames}`, W / 2, H * 0.25, maxWidth, 28);
+                    
+                    ctx.fillStyle = '#333333';
+                    ctx.font = '52px "Great Vibes", cursive';
+                    const nameY = wrapText(ctx, guest.name, W / 2, messageY + 60, maxWidth, 50);
+                    
+                    const separatorY = nameY + 40;
+                    ctx.beginPath();
+                    ctx.moveTo(W / 2 - 50, separatorY);
+                    ctx.lineTo(W / 2 + 50, separatorY);
+                    ctx.strokeStyle = '#D4AF37';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    
+                    ctx.fillStyle = '#5C5C5C';
+                    ctx.font = '18px "Inter", sans-serif';
+                    ctx.fillText("Saturday, 25th December 2025", W / 2, separatorY + 40);
+                    ctx.fillText("At The Grand Ballroom, Dar es Salaam", W / 2, separatorY + 70);
+                    
+                    const qr = qrcode(0, 'L');
+                    qr.addData(guest.id);
+                    qr.make();
+                    const qrImg = new Image();
+                    qrImg.onload = () => {
+                        const qrSize = 90, margin = 40;
+                        const qrX = margin, qrY = H - qrSize - margin;
+                        ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+                        
+                        ctx.textAlign = 'left';
+                        ctx.font = '12px "Inter", sans-serif';
+                        ctx.fillText("Scan for entry", qrX, qrY + qrSize + 15);
+                        
+                        if (guest.uniqueCode) {
+                            ctx.font = '13px "Inter", sans-serif';
+                            ctx.fillStyle = '#5C5C5C';
+                            ctx.fillText("Or use code:", qrX + qrSize + 15, qrY + 20);
+                            ctx.font = 'bold 24px "Courier New", monospace';
+                            ctx.fillStyle = '#000000';
+                            ctx.fillText(guest.uniqueCode, qrX + qrSize + 15, qrY + 50);
+                        }
+                        resolve();
+                    };
+                    qrImg.onerror = reject;
+                    qrImg.src = qr.createDataURL(4, 8);
+                } catch (error) { reject(error); }
+            });
         }
         
-        function downloadInvitation() {
-            // This function's implementation remains the same
+        async function downloadInvitation() {
+            if (!currentGuestForInvitation) return;
+            try {
+                await drawInvitationCanvas(currentGuestForInvitation);
+                const link = document.createElement('a');
+                link.download = `Invitation_${currentGuestForInvitation.name.replace(/\s/g, '_')}.png`;
+                link.href = document.getElementById('invitation-canvas').toDataURL('image/png');
+                link.click();
+            } catch (error) { showToast("Error generating invitation."); }
         }
 
-        function sendViaWhatsApp(guest) {
-           // This function's implementation remains the same
+        async function sendViaWhatsApp(guest) {
+           const guestToSend = guest || currentGuestForInvitation;
+            if (!guestToSend || !guestToSend.phoneNumber) return showToast(`No phone # for ${guestToSend ? guestToSend.name : 'this guest'}.`);
+            try {
+                await drawInvitationCanvas(guestToSend);
+                const uniqueCodeText = guestToSend.uniqueCode ? `Your code is ${guestToSend.uniqueCode}.` : '';
+                const fullMessage = `Hello ${guestToSend.name}, ${document.getElementById('invitation-message').value} ${document.getElementById('host-names').value}. ${uniqueCodeText} Please find your invitation attached.`;
+                const whatsappUrl = `https://wa.me/${guestToSend.phoneNumber}?text=${encodeURIComponent(fullMessage)}`;
+                window.open(whatsappUrl, '_blank');
+                showToast("Please attach the card to the WhatsApp message.");
+            } catch (error) { showToast("Error generating invitation."); }
         }
-
-        // --- BULK ACTIONS & EXPORT ---
+        
+        function wrapText(context, text, x, y, maxWidth, lineHeight) {
+            const words = text.split(' ');
+            let line = '', currentY = y;
+            for (let n = 0; n < words.length; n++) {
+                const testLine = line + words[n] + ' ';
+                const testWidth = context.measureText(testLine).width;
+                if (testWidth > maxWidth && n > 0) {
+                    context.fillText(line.trim(), x, currentY);
+                    line = words[n] + ' ';
+                    currentY += lineHeight;
+                } else { line = testLine; }
+            }
+            context.fillText(line.trim(), x, currentY);
+            return currentY;
+        }
+        
         function handleSelectAll(event) {
             document.querySelectorAll('.guest-checkbox').forEach(cb => cb.checked = event.target.checked);
             updateSelectedCount();
@@ -834,34 +868,20 @@
         }
 
         function sendToSelected() {
-            if (document.querySelectorAll('.guest-checkbox:checked').length === 0) {
-                showToast("Please select at least one guest.");
-                return;
-            }
+            if (document.querySelectorAll('.guest-checkbox:checked').length === 0) return showToast("Please select at least one guest.");
             openDeleteConfirmModal(null, true, 'send');
         }
         
         function deleteSelected() {
-            if (document.querySelectorAll('.guest-checkbox:checked').length === 0) {
-                showToast("Please select at least one guest to delete.");
-                return;
-            }
+            if (document.querySelectorAll('.guest-checkbox:checked').length === 0) return showToast("Please select at least one guest to delete.");
             openDeleteConfirmModal(null, true, 'delete');
         }
 
-        // --- NEW EXPORT FUNCTION ---
         function exportFullGuestList() {
-            if (guestList.length === 0) {
-                showToast("No guests to export.");
-                return;
-            }
-
+            if (guestList.length === 0) return showToast("No guests to export.");
             const dataToExport = guestList.map(guest => ({
-                'Name': guest.name,
-                'Unique Code': guest.uniqueCode || 'N/A',
-                'Phone Number': guest.phoneNumber || 'N/A'
+                'Name': guest.name, 'Unique Code': guest.uniqueCode || 'N/A', 'Phone Number': guest.phoneNumber || 'N/A'
             }));
-
             const worksheet = XLSX.utils.json_to_sheet(dataToExport);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Full Guest List");
@@ -870,15 +890,9 @@
 
         function exportData(format) {
             const checkedInGuests = guestList.filter(g => g.checkedIn);
-            if (checkedInGuests.length === 0) {
-                showToast("No checked-in guests to export.");
-                return;
-            }
+            if (checkedInGuests.length === 0) return showToast("No checked-in guests to export.");
             const dataToExport = checkedInGuests.map(g => ({
-                Name: g.name,
-                Party: g.partySize == 2 ? 'Double' : 'Single',
-                'Checked-In': 'Yes',
-                'Unique Code': g.uniqueCode || 'N/A'
+                Name: g.name, Party: g.partySize == 2 ? 'Double' : 'Single', 'Checked-In': 'Yes', 'Unique Code': g.uniqueCode || 'N/A'
             }));
             const worksheet = XLSX.utils.json_to_sheet(dataToExport);
             const workbook = XLSX.utils.book_new();
@@ -886,7 +900,6 @@
             XLSX.writeFile(workbook, `checked_in_guests_export.${format}`);
         }
         
-        // --- PAGE NAVIGATION ---
         function showPage(pageName) {
             document.getElementById('page-dashboard').classList.add('hidden');
             document.getElementById('page-checked-in').classList.add('hidden');
@@ -897,8 +910,9 @@
 
         function setFilter(filterType) {
             activeFilter = filterType;
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(`filter-${filterType}`).classList.add('active');
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active', 'bg-purple-500', 'text-white'));
+            const activeBtn = document.getElementById(`filter-${filterType}`);
+            activeBtn.classList.add('active', 'bg-purple-500', 'text-white');
             renderGuestList();
         }
     </script>
