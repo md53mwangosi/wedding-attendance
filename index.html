@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guest Check-In</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        .view { display: none; }
+        .view.active { display: block; }
+        .modal { transition: opacity 0.25s ease; }
+        .modal-content { transition: transform 0.25s ease; }
+        #qr-reader {
+            border-radius: 12px;
+            border: 2px solid #e2e8f0;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="flex justify-center min-h-screen p-4 pt-12">
+        <div class="w-full max-w-lg mx-auto bg-white p-4 sm:p-6 md:p-8 rounded-2xl shadow-lg text-center">
+
+            <div id="selection-view" class="view active">
+                <i class="fas fa-ring fa-2x sm:fa-3x text-purple-500 mb-4"></i>
+                <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">Guest Check-In</h1>
+                <p class="text-gray-500 mb-6 sm:mb-8">Please select a check-in method.</p>
+                <div class="space-y-4">
+                    <button id="start-scan-btn" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 sm:py-4 px-6 rounded-xl text-base sm:text-lg flex items-center justify-center transition-transform transform hover:scale-105">
+                        <i class="fas fa-qrcode mr-3"></i>
+                        Scan QR Code
+                    </button>
+                    <button id="open-manual-modal-btn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 sm:py-4 px-6 rounded-xl text-base sm:text-lg flex items-center justify-center transition-transform transform hover:scale-105">
+                        <i class="fas fa-keyboard mr-3"></i>
+                        Enter Code Manually
+                    </button>
+                </div>
+            </div>
+
+            <div id="scanner-view" class="view">
+                <h2 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">Scanning QR Code</h2>
+                <div id="qr-reader" class="w-full mx-auto"></div>
+                <button id="back-to-selection-btn" class="mt-6 w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-6 rounded-lg">
+                    Cancel
+                </button>
+            </div>
+            
+        </div>
+    </div>
+
+    <div id="manual-entry-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-40">
+        <div class="modal-content bg-white w-full max-w-sm p-6 rounded-xl shadow-2xl transform scale-95">
+            <h3 class="text-xl font-bold mb-4">Enter Guest Code</h3>
+            <form id="manual-entry-form">
+                <input type="text" id="manual-code-input" class="text-center font-mono text-2xl tracking-widest shadow appearance-none border rounded w-full py-3 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="A1B2C3" maxlength="6" required>
+                <div class="flex items-center justify-end space-x-2 mt-6">
+                    <button type="button" id="cancel-manual-entry" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancel</button>
+                    <button type="submit" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg">Check In</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="result-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="modal-content bg-white w-full max-w-sm p-6 sm:p-8 rounded-xl shadow-2xl text-center transform scale-95">
+            <div id="result-icon" class="mb-4 text-5xl sm:text-6xl"></div>
+            <h3 id="result-title" class="text-xl sm:text-2xl font-bold mb-2"></h3>
+            <div id="result-message" class="text-gray-600 mb-6 space-y-2"></div>
+            <button id="close-result-modal" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg">Close</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, limit, onSnapshot, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- GLOBAL VARIABLES & REFERENCES ---
+        let db;
+        let html5QrCode;
+        let guestList = [];
+        let isProcessingScan = false;
+        
+        // Tone.js synths for audio feedback
+        let successSynth, warningSynth, errorSynth;
+
+        const views = {
+            selection: document.getElementById('selection-view'),
+            scanner: document.getElementById('scanner-view')
+        };
+        const modals = {
+            manualEntry: document.getElementById('manual-entry-modal'),
+            result: document.getElementById('result-modal')
+        };
+        const buttons = {
+            startScan: document.getElementById('start-scan-btn'),
+            openManual: document.getElementById('open-manual-modal-btn'),
+            backToSelection: document.getElementById('back-to-selection-btn'),
+            cancelManual: document.getElementById('cancel-manual-entry'),
+            closeResult: document.getElementById('close-result-modal')
+        };
+        const manualEntryForm = document.getElementById('manual-entry-form');
+        const manualCodeInput = document.getElementById('manual-code-input');
+        const resultElements = {
+            icon: document.getElementById('result-icon'),
+            title: document.getElementById('result-title'),
+            message: document.getElementById('result-message')
+        };
+
+        // --- INITIALIZATION & EVENT LISTENERS ---
+        document.addEventListener('DOMContentLoaded', async () => {
+             try {
+                const firebaseConfig = {
+                    apiKey: "AIzaSyDtleN1LQA4uX3t2gQ6n8TXzGdOS_wqy5k",
+                    authDomain: "my-wedding-app-9182c.firebaseapp.com",
+                    projectId: "my-wedding-app-9182c",
+                    storageBucket: "my-wedding-app-9182c.appspot.com",
+                    messagingSenderId: "1032680259309",
+                    appId: "1:1032680259309:web:8c52dd74df75e42ff096e4",
+                    measurementId: "G-V3RCDPF94V"
+                };
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                
+                enableIndexedDbPersistence(db).catch(err => console.warn("Firestore Persistence Error:", err.code));
+
+                await signInAnonymously(getAuth(app));
+                listenForGuestUpdates();
+
+            } catch (error) {
+                console.error("Firebase Initialization Failed:", error);
+                alert("CRITICAL ERROR: Could not connect to the database.");
+            }
+
+            // Initialize Tone.js synthesizers
+            successSynth = new Tone.Synth().toDestination();
+            warningSynth = new Tone.Synth({ oscillator: { type: 'triangle' } }).toDestination();
+            errorSynth = new Tone.Synth({ oscillator: { type: 'square' } }).toDestination();
+
+            // Set up main button event listeners
+            buttons.startScan.addEventListener('click', () => {
+                initAudioContext();
+                startScanner();
+            });
+            buttons.openManual.addEventListener('click', () => {
+                initAudioContext();
+                showModal(modals.manualEntry);
+            });
+
+            // Other listeners
+            buttons.backToSelection.addEventListener('click', stopScanner);
+            buttons.cancelManual.addEventListener('click', () => hideModal(modals.manualEntry));
+            buttons.closeResult.addEventListener('click', () => hideModal(modals.result));
+            manualEntryForm.addEventListener('submit', handleManualFormSubmit);
+        });
+        
+        function listenForGuestUpdates() {
+            const guestCollectionRef = collection(db, "guests");
+            onSnapshot(guestCollectionRef, (snapshot) => {
+                guestList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                console.log("Guest list updated. Total guests:", guestList.length);
+            }, (error) => console.error("Error listening to guest updates:", error));
+        }
+
+        function initAudioContext() {
+            if (Tone.context.state !== 'running') {
+                Tone.start();
+                console.log("Audio context started by user gesture.");
+            }
+        }
+
+        // --- VIEW & MODAL MANAGEMENT ---
+        function showView(viewName) {
+            Object.values(views).forEach(v => v.classList.remove('active'));
+            views[viewName].classList.add('active');
+        }
+
+        function showModal(modalElement) {
+            modalElement.classList.remove('hidden');
+            setTimeout(() => {
+                modalElement.querySelector('.modal-content').classList.remove('scale-95');
+            }, 10);
+        }
+
+        function hideModal(modalElement) {
+            modalElement.querySelector('.modal-content').classList.add('scale-95');
+            setTimeout(() => {
+                modalElement.classList.add('hidden');
+                isProcessingScan = false;
+            }, 250);
+        }
+
+        // --- SCANNER & CHECK-IN LOGIC ---
+        function startScanner() {
+            showView('scanner');
+            html5QrCode = new Html5Qrcode("qr-reader");
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+                .catch(err => {
+                    console.error("Unable to start QR scanner", err);
+                    showResultModal('Error', 'Could not start camera. Please grant permissions.', 'error');
+                    stopScanner();
+                });
+        }
+        
+        async function stopScanner() {
+            try {
+                if (html5QrCode && html5QrCode.isScanning) {
+                    await html5QrCode.stop();
+                }
+            } catch (err) {
+                console.warn("Scanner could not be stopped cleanly:", err);
+            }
+            showView('selection');
+        }
+        
+        async function onScanSuccess(decodedText) {
+            if (isProcessingScan) return;
+            isProcessingScan = true;
+
+            if (html5QrCode && html5QrCode.isScanning) {
+                await stopScanner();
+                processGuestCheckIn(decodedText, 'id');
+            }
+        }
+        
+        async function handleManualFormSubmit(e) {
+            e.preventDefault();
+            if (isProcessingScan) return;
+            isProcessingScan = true;
+
+            const code = manualCodeInput.value.trim().toUpperCase();
+            hideModal(modals.manualEntry);
+            manualCodeInput.value = '';
+            if (code) await processGuestCheckIn(code, 'uniqueCode');
+        }
+        
+        async function processGuestCheckIn(identifier, type) {
+            const trimmedId = identifier.trim();
+            const guest = guestList.find(g => (type === 'id' ? g.id : g.uniqueCode) === trimmedId);
+
+            if (guest) {
+                if (guest.checkedIn) {
+                    showResultModal('Already Checked In', `<strong>${guest.name}</strong> has already been checked in.`, 'warning');
+                } else {
+                    const guestDocRef = doc(db, "guests", guest.id);
+                    await setDoc(guestDocRef, { checkedIn: true }, { merge: true });
+                    const partySizeText = guest.partySize == 2 
+                        ? 'Double Party (2 Guests)' 
+                        : 'Single Party (1 Guest)';
+                    const successMessage = `
+                        <div>Welcome,</div>
+                        <strong class="block text-2xl text-gray-800">${guest.name}</strong>
+                        <div class="mt-2 block text-lg font-medium text-purple-600 bg-purple-50 p-2 rounded-lg">${partySizeText}</div>
+                    `;
+                    showResultModal('Checked In!', successMessage, 'success');
+                }
+            } else {
+                showResultModal('Not Found', `Guest with ${type === 'id' ? 'QR Code' : 'Code'} "<strong>${identifier}</strong>" not found.`, 'error');
+            }
+        }
+
+        // ===================================================================
+        // MODIFIED: Added speech synthesis function and updated result modal
+        // ===================================================================
+
+        // ADDED: Function to speak text using the browser's built-in voice
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Cancel any previous speech
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 0.9;
+                utterance.pitch = 1.1;
+                window.speechSynthesis.speak(utterance);
+            } else {
+                console.warn("Text-to-Speech is not supported in this browser.");
+            }
+        }
+
+        function showResultModal(title, message, type) {
+            let iconHtml, iconColorClass;
+            switch(type) {
+                case 'success':
+                    iconHtml = '<i class="fas fa-check-circle"></i>';
+                    iconColorClass = 'text-green-500';
+                    // Play the beep sound from Tone.js
+                    successSynth.triggerAttackRelease("C5", "8n");
+                    // After a short delay, speak "Welcome"
+                    setTimeout(() => {
+                        speak("Welcome");
+                    }, 350); // 350ms delay
+                    break;
+                case 'warning':
+                    iconHtml = '<i class="fas fa-exclamation-triangle"></i>';
+                    iconColorClass = 'text-yellow-500';
+                    warningSynth.triggerAttackRelease("E4", "8n");
+                    break;
+                case 'error':
+                    iconHtml = '<i class="fas fa-times-circle"></i>';
+                    iconColorClass = 'text-red-500';
+                    errorSynth.triggerAttackRelease("G2", "8n");
+                    break;
+            }
+
+            resultElements.icon.innerHTML = iconHtml;
+            resultElements.icon.className = `mb-4 text-5xl sm:text-6xl ${iconColorClass}`;
+            resultElements.title.textContent = title;
+            resultElements.message.innerHTML = message;
+
+            showModal(modals.result);
+        }
+        // ===================================================================
+        // END OF MODIFIED SECTION
+        // ===================================================================
+
+    </script>
+</body>
+</html>
