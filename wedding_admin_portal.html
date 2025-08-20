@@ -764,102 +764,104 @@ function handleFileUpload(event) {
             reader.readAsDataURL(file);
         }
 
-function drawInvitationCanvas(guest) {
-    if (!guest) return;
-    return new Promise((resolve, reject) => {
-        try {
-            const canvas = document.getElementById('invitation-canvas');
-            const ctx = canvas.getContext('2d');
-            
-            // --- MODIFICATION 1: INTRODUCE A SCALE FACTOR ---
-            // We'll render the canvas at 2x resolution for high quality.
-            // You can increase this to 3 for even higher "retina" quality.
-            const scaleFactor = 2; 
+        function drawInvitationCanvas(guest) {
+            if (!guest) return;
+            return new Promise((resolve, reject) => {
+                try {
+                    const canvas = document.getElementById('invitation-canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    const scaleFactor = 2; 
+                    const W = 500;
+                    const H = 700;
 
-            const W = 500;
-            const H = 700;
+                    canvas.width = W * scaleFactor;
+                    canvas.height = H * scaleFactor;
+                    canvas.style.width = `${W}px`;
+                    canvas.style.height = `${H}px`;
+                    
+                    if (templateImage) {
+                        ctx.drawImage(templateImage, 0, 0, canvas.width, canvas.height);
+                    } else {
+                        ctx.fillStyle = '#FDFBF7';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.strokeStyle = '#D4AF37';
+                        ctx.lineWidth = 10 * scaleFactor;
+                        ctx.strokeRect(20 * scaleFactor, 20 * scaleFactor, canvas.width - (40 * scaleFactor), canvas.height - (40 * scaleFactor));
+                    }
 
-            // Set the actual number of pixels for the canvas
-            canvas.width = W * scaleFactor;
-            canvas.height = H * scaleFactor;
-
-            // Set the display size of the canvas on the page
-            canvas.style.width = `${W}px`;
-            canvas.style.height = `${H}px`;
-            
-            // --- END MODIFICATION ---
-
-            if (templateImage) {
-                // Draw the image to fill the entire high-resolution canvas
-                ctx.drawImage(templateImage, 0, 0, canvas.width, canvas.height);
-            } else {
-                ctx.fillStyle = '#FDFBF7';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.strokeStyle = '#D4AF37';
-                // Scale the line width and rectangle coordinates
-                ctx.lineWidth = 10 * scaleFactor;
-                ctx.strokeRect(20 * scaleFactor, 20 * scaleFactor, canvas.width - (40 * scaleFactor), canvas.height - (40 * scaleFactor));
-            }
-            
-            ctx.textAlign = 'center';
-            const maxWidth = canvas.width - (100 * scaleFactor);
-            const message = document.getElementById('invitation-message').value;
-            const hostNames = document.getElementById('host-names').value;
-            
-            ctx.fillStyle = '#5C5C5C';
-            // Scale font sizes
-            ctx.font = `${22 * scaleFactor}px "Cormorant Garamond", serif`;
-            // Scale positions and line heights
-            const messageY = wrapText(ctx, `${message} ${hostNames}`, canvas.width / 2, canvas.height * 0.25, maxWidth, 28 * scaleFactor);
-            
-            ctx.fillStyle = '#000000';
-            ctx.font = `bold ${14 * scaleFactor}px "Times New Roman", serif`;
-            const nameY = wrapText(ctx, guest.name.toUpperCase(), canvas.width - (172 * scaleFactor), messageY + (160 * scaleFactor), maxWidth, 16 * scaleFactor);
-            
-            const separatorY = nameY + (40 * scaleFactor);
-            ctx.beginPath();
-            // Scale separator line position
-            ctx.moveTo(canvas.width / 2 - (50 * scaleFactor), separatorY);
-            ctx.lineTo(canvas.width / 2 + (50 * scaleFactor), separatorY);
-            ctx.strokeStyle = '#D4AF37';
-            ctx.lineWidth = 1 * scaleFactor;
-            ctx.stroke();
-            
-            ctx.fillStyle = '#5C5C5C';
-            ctx.font = `${18 * scaleFactor}px "Inter", sans-serif`;
-        
-            
-            const qr = qrcode(0, 'L');
-            qr.addData(guest.id);
-            qr.make();
-            const qrImg = new Image();
-            qrImg.onload = () => {
-                // Scale QR code size and position
-                const qrSize = 90 * scaleFactor;
-                const margin = 40 * scaleFactor;
-                const qrX = margin;
-                const qrY = canvas.height - qrSize - margin;
-
-                ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
-                
-                ctx.textAlign = 'left';
-                ctx.font = `${12 * scaleFactor}px "Inter", sans-serif`;
-                ctx.fillText("Scan for entry", qrX, qrY + qrSize + (15 * scaleFactor));
-                
-                if (guest.uniqueCode) {
-                    ctx.font = `bold ${13 * scaleFactor}px "Inter", sans-serif`;
+                    // --- MODIFIED SECTION: Display Party Size in Top-Right Corner ---
+                    if (guest.partySize) {
+                        // 1. Determine the text to display based on party size
+                        const partyText = guest.partySize == 2 ? 'Double ' : 'Single ';
+                        
+                        // 2. Set the style to white, bold, and italic
+                        ctx.fillStyle = '#FFFFFF'; // Changed to white
+                        ctx.font = `bold italic ${12 * scaleFactor}px "Inter", sans-serif`; // Added "bold"
+                        ctx.textAlign = 'right'; // Align text to the right for corner placement
+                        
+                        // 3. Position the text with a margin from the top-right corner
+                        const margin = 35 * scaleFactor;
+                        ctx.fillText(partyText, canvas.width - margin, margin);
+                    }
+                    // --- END OF MODIFIED SECTION ---
+                    
+                    // Reset alignment for the main message which should be centered
+                    ctx.textAlign = 'center'; 
+                    const maxWidth = canvas.width - (100 * scaleFactor);
+                    const message = document.getElementById('invitation-message').value;
+                    const hostNames = document.getElementById('host-names').value;
+                    
                     ctx.fillStyle = '#5C5C5C';
-                
-                    ctx.font = `bold ${24 * scaleFactor}px "Courier New", monospace`;
+                    ctx.font = `${22 * scaleFactor}px "Cormorant Garamond", serif`;
+                    const messageY = wrapText(ctx, `${message} ${hostNames}`, canvas.width / 2, canvas.height * 0.25, maxWidth, 28 * scaleFactor);
+                    
                     ctx.fillStyle = '#000000';
-                }
-                resolve();
-            };
-            qrImg.onerror = reject;
-            qrImg.src = qr.createDataURL(4, 8);
-        } catch (error) { reject(error); }
-    });
-}
+                    ctx.font = `bold ${14 * scaleFactor}px "Times New Roman", serif`;
+                    const nameY = wrapText(ctx, guest.name.toUpperCase(), canvas.width - (172 * scaleFactor), messageY + (160 * scaleFactor), maxWidth, 16 * scaleFactor);
+                    
+                    const separatorY = nameY + (40 * scaleFactor);
+                    ctx.beginPath();
+                    ctx.moveTo(canvas.width / 2 - (50 * scaleFactor), separatorY);
+                    ctx.lineTo(canvas.width / 2 + (50 * scaleFactor), separatorY);
+                    ctx.strokeStyle = '#D4AF37';
+                    ctx.lineWidth = 1 * scaleFactor;
+                    ctx.stroke();
+                    
+                    ctx.fillStyle = '#5C5C5C';
+                    ctx.font = `${18 * scaleFactor}px "Inter", sans-serif`;
+                
+                    
+                    const qr = qrcode(0, 'L');
+                    qr.addData(guest.id);
+                    qr.make();
+                    const qrImg = new Image();
+                    qrImg.onload = () => {
+                        const qrSize = 90 * scaleFactor;
+                        const margin = 40 * scaleFactor;
+                        const qrX = margin;
+                        const qrY = canvas.height - qrSize - margin;
+
+                        ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+                        
+                        ctx.textAlign = 'left';
+                        ctx.font = `${12 * scaleFactor}px "Inter", sans-serif`;
+                        ctx.fillText("Scan for entry", qrX, qrY + qrSize + (15 * scaleFactor));
+                        
+                        if (guest.uniqueCode) {
+                            ctx.font = `bold ${13 * scaleFactor}px "Inter", sans-serif`;
+                            ctx.fillStyle = '#5C5C5C';
+                        
+                            ctx.font = `bold ${24 * scaleFactor}px "Courier New", monospace`;
+                            ctx.fillStyle = '#000000';
+                        }
+                        resolve();
+                    };
+                    qrImg.onerror = reject;
+                    qrImg.src = qr.createDataURL(4, 8);
+                } catch (error) { reject(error); }
+            });
+        }     
         
         async function downloadInvitation() {
             if (!currentGuestForInvitation) return;
