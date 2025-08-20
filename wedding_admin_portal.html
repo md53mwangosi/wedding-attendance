@@ -772,9 +772,12 @@
                     ctx.font = '22px "Cormorant Garamond", serif';
                     const messageY = wrapText(ctx, `${message} ${hostNames}`, W / 2, H * 0.25, maxWidth, 28);
                     
-                    ctx.fillStyle = '#333333';
-                    ctx.font = '52px "Great Vibes", cursive';
-                    // const nameY = wrapText(ctx, guest.name, W / 2, messageY + 60, maxWidth, 50);
+                    // --- MODIFIED SECTION START ---
+                    ctx.fillStyle = '#000000';
+                    ctx.font = 'bold 14px "Times New Roman", serif';
+                    // Convert guest name to all capital letters and adjust positioning for the new font size
+                    const nameY = wrapText(ctx, guest.name.toUpperCase(), W - 172, messageY + 160, maxWidth, 16);
+                    // --- MODIFIED SECTION END ---
                     
                     const separatorY = nameY + 40;
                     ctx.beginPath();
@@ -788,7 +791,6 @@
                     ctx.font = '18px "Inter", sans-serif';
                 
                     
-                     
                     const qr = qrcode(0, 'L');
                     qr.addData(guest.id);
                     qr.make();
@@ -805,10 +807,10 @@
                         if (guest.uniqueCode) {
                             ctx.font = '13px "Inter", sans-serif';
                             ctx.fillStyle = '#5C5C5C';
-                          
+                        
                             ctx.font = 'bold 24px "Courier New", monospace';
                             ctx.fillStyle = '#000000';
-                           
+                            
                         }
                         resolve();
                     };
