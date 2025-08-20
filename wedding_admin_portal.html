@@ -773,8 +773,8 @@
                     const messageY = wrapText(ctx, `${message} ${hostNames}`, W / 2, H * 0.25, maxWidth, 28);
                     
                     ctx.fillStyle = '#333333';
-                    ctx.font = '52px "Great Vibes", cursive';
-                    const nameY = wrapText(ctx, guest.name, W / 2, messageY + 60, maxWidth, 50);
+                   
+                   
                     
                     const separatorY = nameY + 40;
                     ctx.beginPath();
@@ -786,9 +786,9 @@
                     
                     ctx.fillStyle = '#5C5C5C';
                     ctx.font = '18px "Inter", sans-serif';
-                    ctx.fillText("Saturday, 25th December 2025", W / 2, separatorY + 40);
-                    ctx.fillText("At The Grand Ballroom, Dar es Salaam", W / 2, separatorY + 70);
+                
                     
+                     
                     const qr = qrcode(0, 'L');
                     qr.addData(guest.id);
                     qr.make();
@@ -805,10 +805,10 @@
                         if (guest.uniqueCode) {
                             ctx.font = '13px "Inter", sans-serif';
                             ctx.fillStyle = '#5C5C5C';
-                            ctx.fillText("Or use code:", qrX + qrSize + 15, qrY + 20);
+                          
                             ctx.font = 'bold 24px "Courier New", monospace';
                             ctx.fillStyle = '#000000';
-                            ctx.fillText(guest.uniqueCode, qrX + qrSize + 15, qrY + 50);
+                           
                         }
                         resolve();
                     };
