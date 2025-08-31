@@ -375,7 +375,7 @@
         function handlePasswordSubmit(e) {
             e.preventDefault();
             const password = document.getElementById('password-input').value;
-            if (password === 'admin123') {
+            if (password === 'mwangosi') {
                 document.getElementById('password-modal').classList.add('hidden');
                 document.getElementById('admin-content').classList.remove('hidden');
                 initializeAdminPortal();
@@ -482,7 +482,7 @@
             if (activeFilter === 'single') {
                 listToRender = guestList.filter(g => g.partySize == 1);
             } else if (activeFilter === 'double') {
-                listToRender = guestList.filter(g => g.partySize == 2);
+                listToRender = guestList.filter(g => g.partySize == 1);
             }
             const searchTerm = document.getElementById('search-input').value.toLowerCase();
             const filteredList = listToRender.filter(guest => 
@@ -498,7 +498,7 @@
                 const row = document.createElement('tr');
                 row.className = 'hover:bg-gray-50';
                 const statusBadge = getStatusBadge(guest.status);
-                const partyText = guest.partySize == 2 ? 'Double' : 'Single';
+                const partyText = guest.partySize == 2 ? 'Double' : 'Single';  // 'Double' : 'Single';  add this to desply singole or double
                 const checkedInIcon = guest.checkedIn ? `<i class="fas fa-check-circle text-green-500"></i> Yes` : `<i class="fas fa-times-circle text-red-500"></i> No`;
                 row.innerHTML = `
                     <td class="py-3 px-4"><input type="checkbox" class="guest-checkbox" data-guest-id="${guest.id}"></td>
@@ -596,66 +596,58 @@
             }
         }
         
-function handleFileUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-            const json = XLSX.utils.sheet_to_json(worksheet);
-            event.target.value = '';
-            if (json.length === 0) return showImportSummary('<p class="text-red-500">Error: The file is empty.</p>');
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(worksheet);
+                    event.target.value = '';
+                    if (json.length === 0) return showImportSummary('<p class="text-red-500">Error: The file is empty.</p>');
 
-            const batch = writeBatch(db);
-            let addedCount = 0, skippedCount = 0;
-            const existingNames = new Set(guestList.map(g => g.name.trim().toLowerCase()));
-            
-            json.forEach((item) => {
-                // 'item' represents a single row from the Excel sheet
-                const name = (item['Name'] || item['Full Name'] || item['name'] || '').trim();
-                const phone = String(item['Phone'] || item['Phone Number'] || item['phoneNumber'] || '');
-
-                // --- MODIFIED LOGIC FOR PARTY SIZE ---
-                // 1. Find the key for party size, ignoring case and spaces (e.g., 'Party Size', 'partysize')
-                const partySizeKey = Object.keys(item).find(key => key.toLowerCase().replace(/\s/g, '') === 'partysize');
-                
-                // 2. Get the value using the found key, or default to 1 if not found.
-                const partySizeValue = partySizeKey ? item[partySizeKey] : 1;
-                
-                // 3. Convert to a number and ensure it's valid, otherwise default to 1.
-                const partySize = parseInt(partySizeValue, 10) || 1;
-                // --- END OF MODIFIED LOGIC ---
-                
-                if (name && phone && !existingNames.has(name.toLowerCase())) {
-                    const newGuestRef = doc(guestCollectionRef);
-                    batch.set(newGuestRef, {
-                        id: newGuestRef.id,
-                        name: name,
-                        phoneNumber: phone,
-                        status: (item['Status'] || 'INVITED').toString().toUpperCase(),
-                        partySize: partySize, // Use the new robustly-found partySize
-                        uniqueCode: generateUniqueCode(),
-                        checkedIn: false
+                    const batch = writeBatch(db);
+                    let addedCount = 0, skippedCount = 0;
+                    const existingNames = new Set(guestList.map(g => g.name.trim().toLowerCase()));
+                    
+                    json.forEach((item) => {
+                        const name = (item['Name'] || item['Full Name'] || item['name'] || '').trim();
+                        const phone = String(item['Phone'] || item['Phone Number'] || item['phoneNumber'] || '');
+                        const partySizeKey = Object.keys(item).find(key => key.toLowerCase().replace(/\s/g, '') === 'partysize');
+                        const partySizeValue = partySizeKey ? item[partySizeKey] : 1;
+                        const partySize = parseInt(partySizeValue, 10) || 1;
+                        
+                        if (name && phone && !existingNames.has(name.toLowerCase())) {
+                            const newGuestRef = doc(guestCollectionRef);
+                            batch.set(newGuestRef, {
+                                id: newGuestRef.id,
+                                name: name,
+                                phoneNumber: phone,
+                                status: (item['Status'] || 'INVITED').toString().toUpperCase(),
+                                partySize: partySize,
+                                uniqueCode: generateUniqueCode(),
+                                checkedIn: false
+                            });
+                            addedCount++;
+                            existingNames.add(name.toLowerCase());
+                        } else {
+                            skippedCount++;
+                        }
                     });
-                    addedCount++;
-                    existingNames.add(name.toLowerCase());
-                } else {
-                    skippedCount++;
-                }
-            });
 
-            if (addedCount > 0) await batch.commit();
-            showImportSummary(`<p class="text-green-600">${addedCount} guests added.</p><p class="text-yellow-600">${skippedCount} guests skipped.</p>`);
-        } catch (error) {
-            console.error("File upload error:", error); // Added for better debugging
-            showImportSummary('<p class="text-red-500">Error: Could not process file.</p>');
+                    if (addedCount > 0) await batch.commit();
+                    showImportSummary(`<p class="text-green-600">${addedCount} guests added.</p><p class="text-yellow-600">${skippedCount} guests skipped.</p>`);
+                } catch (error) {
+                    console.error("File upload error:", error);
+                    showImportSummary('<p class="text-red-500">Error: Could not process file.</p>');
+                }
+            };
+            reader.readAsArrayBuffer(file);
         }
-    };
-    reader.readAsArrayBuffer(file);
-}
+
         function openAddGuestModal() {
             document.getElementById('guest-form').reset();
             document.getElementById('modal-title').textContent = 'Add New Guest';
@@ -790,23 +782,15 @@ function handleFileUpload(event) {
                         ctx.strokeRect(20 * scaleFactor, 20 * scaleFactor, canvas.width - (40 * scaleFactor), canvas.height - (40 * scaleFactor));
                     }
 
-                    // --- MODIFIED SECTION: Display Party Size in Top-Right Corner ---
                     if (guest.partySize) {
-                        // 1. Determine the text to display based on party size
-                        const partyText = guest.partySize == 2 ? 'Double ' : 'Single ';
-                        
-                        // 2. Set the style to white, bold, and italic
-                        ctx.fillStyle = '#FFFFFF'; // Changed to white
-                        ctx.font = `bold italic ${12 * scaleFactor}px "Inter", sans-serif`; // Added "bold"
-                        ctx.textAlign = 'right'; // Align text to the right for corner placement
-                        
-                        // 3. Position the text with a margin from the top-right corner
+                        const partyText = guest.partySize == 2 ? 'Double' : 'Single'; // 'Double' : 'Single'; add this to display single or double
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.font = `bold italic ${12 * scaleFactor}px "Inter", sans-serif`;
+                        ctx.textAlign = 'right';
                         const margin = 35 * scaleFactor;
                         ctx.fillText(partyText, canvas.width - margin, margin);
                     }
-                    // --- END OF MODIFIED SECTION ---
                     
-                    // Reset alignment for the main message which should be centered
                     ctx.textAlign = 'center'; 
                     const maxWidth = canvas.width - (100 * scaleFactor);
                     const message = document.getElementById('invitation-message').value;
@@ -816,53 +800,53 @@ function handleFileUpload(event) {
                     ctx.font = `${22 * scaleFactor}px "Cormorant Garamond", serif`;
                     const messageY = wrapText(ctx, `${message} ${hostNames}`, canvas.width / 2, canvas.height * 0.25, maxWidth, 28 * scaleFactor);
                     
-                    ctx.fillStyle = '#000000';
+                    ctx.fillStyle = '#FFFFFF';
                     ctx.font = `bold ${14 * scaleFactor}px "Times New Roman", serif`;
-                    const nameY = wrapText(ctx, guest.name.toUpperCase(), canvas.width - (172 * scaleFactor), messageY + (160 * scaleFactor), maxWidth, 16 * scaleFactor);
+                    const nameY = wrapText(ctx, guest.name.toUpperCase(), canvas.width / 2, messageY + (190 * scaleFactor), maxWidth, 16 * scaleFactor);
                     
                     const separatorY = nameY + (40 * scaleFactor);
                     ctx.beginPath();
                     ctx.moveTo(canvas.width / 2 - (50 * scaleFactor), separatorY);
                     ctx.lineTo(canvas.width / 2 + (50 * scaleFactor), separatorY);
-                    ctx.strokeStyle = '#D4AF37';
-                    ctx.lineWidth = 1 * scaleFactor;
-                    ctx.stroke();
                     
                     ctx.fillStyle = '#5C5C5C';
                     ctx.font = `${18 * scaleFactor}px "Inter", sans-serif`;
                 
-                    
                     const qr = qrcode(0, 'L');
                     qr.addData(guest.id);
                     qr.make();
                     const qrImg = new Image();
                     qrImg.onload = () => {
-                        const qrSize = 90 * scaleFactor;
-                        const margin = 40 * scaleFactor;
+                        const qrSize = 120 * scaleFactor;
+                        const margin = 5 * scaleFactor;
                         const qrX = margin;
                         const qrY = canvas.height - qrSize - margin;
 
                         ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
                         
-                        ctx.textAlign = 'left';
-                        ctx.font = `${12 * scaleFactor}px "Inter", sans-serif`;
-                        ctx.fillText("Scan for entry", qrX, qrY + qrSize + (15 * scaleFactor));
-                        
                         if (guest.uniqueCode) {
-                            ctx.font = `bold ${13 * scaleFactor}px "Inter", sans-serif`;
-                            ctx.fillStyle = '#5C5C5C';
-                        
-                            ctx.font = `bold ${24 * scaleFactor}px "Courier New", monospace`;
-                            ctx.fillStyle = '#000000';
+                            ctx.font = `bold ${14 * scaleFactor}px "Courier New", monospace`;
+                            ctx.fillStyle = '#FFFFFF';
+                            ctx.textAlign = 'left';
+                            ctx.textBaseline = 'bottom'; 
+                            const textY = qrY - (10 * scaleFactor);
+                            ctx.fillText(guest.uniqueCode, qrX, textY);
+                            ctx.textBaseline = 'alphabetic';
                         }
+
+                        ctx.textAlign = 'left';
+                        ctx.fillStyle = '#5C5C5C';
+                        ctx.font = `${12 * scaleFactor}px "Inter", sans-serif`;
+                        ctx.fillText("scan for entry", qrX, qrY + qrSize + (15 * scaleFactor));
+                        
                         resolve();
                     };
                     qrImg.onerror = reject;
                     qrImg.src = qr.createDataURL(4, 8);
                 } catch (error) { reject(error); }
             });
-        }     
-        
+        }
+
         async function downloadInvitation() {
             if (!currentGuestForInvitation) return;
             try {
